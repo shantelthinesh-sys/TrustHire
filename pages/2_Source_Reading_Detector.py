@@ -1,11 +1,16 @@
 import streamlit as st
 
 from integrity_utils import source_reading_report
+from ui_theme import apply_theme, card, hero
 
 st.set_page_config(page_title="Source Reading Detector", page_icon="📄", layout="wide")
+apply_theme()
 
-st.title("Source Reading Detector")
-st.write("Check if a candidate answer is likely copied or read from a known source.")
+hero(
+    "Source Reading Detector",
+    "Detect likely reading or copying behavior by comparing candidate responses against known source text.",
+)
+card("Use this page during or after interviews to quantify overlap risk and prioritize manual review.")
 
 candidate_answer = st.text_area(
     "Candidate Answer",

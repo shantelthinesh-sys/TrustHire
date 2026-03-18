@@ -1,17 +1,17 @@
 import streamlit as st
 
 from integrity_utils import interview_integrity_report
+from ui_theme import apply_theme, card, hero
 
 st.set_page_config(page_title="Interview Integrity Check", page_icon="🕵️", layout="wide")
+apply_theme()
 
-st.title("Interview Integrity Check")
-st.write(
-    "Estimate if an interview appears proper based on transcript behavior and optional source overlap."
+hero(
+    "Interview Integrity Check",
+    "Assess interview authenticity from transcript behavior and source overlap signals.",
 )
 
-st.info(
-    "This is a screening assistant, not final proof. Always combine this with human review, live proctoring, and policy checks."
-)
+card("This is a screening assistant, not final proof. Combine this with human review, live proctoring, and policy controls.")
 
 transcript = st.text_area(
     "Interview Transcript",

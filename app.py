@@ -4,7 +4,10 @@ import spacy
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from ui_theme import apply_theme, card, hero
+
 st.set_page_config(page_title="TrustHire Interview Suite", page_icon="🛡️", layout="wide")
+apply_theme()
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -39,8 +42,11 @@ def missing_skills(resume_skills, job_skills):
     return list(set(job_skills) - set(resume_skills))
 
 # UI
-st.title("TrustHire Interview Suite")
-st.caption("Use the left sidebar to open Interview Integrity Check, Source Reading Detector, Live Proctored Interview, and Admin Interview Records pages.")
+hero(
+    "TrustHire Interview Suite",
+    "AI-first interview integrity platform with proctoring, evidence logs, and ATS resume analysis.",
+)
+card("Use the left sidebar to open Interview Integrity Check, Source Reading Detector, Live Proctored Interview, and Admin Interview Records.")
 st.subheader("Resume Analyzer")
 
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
@@ -59,5 +65,6 @@ if resume_file and job_desc:
     missing = missing_skills(res_skills, job_skills)
 
     st.subheader(f"ATS Score: {score}%")
-    st.write("✅ Skills Found:", res_skills)
-    st.write("❌ Missing Skills:", missing)
+    left, right = st.columns(2)
+    left.write("✅ Skills Found:", res_skills)
+    right.write("❌ Missing Skills:", missing)

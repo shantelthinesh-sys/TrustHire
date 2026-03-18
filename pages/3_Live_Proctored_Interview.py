@@ -2,27 +2,28 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-import secrets
 
 import av
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
 from streamlit_webrtc import VideoProcessorBase, WebRtcMode, webrtc_streamer
 
-from db_utils import save_interview_session, seed_default_admin
+from db_utils import (
+    authenticate_user,
+    create_interview_token,
+    list_users,
+    mark_token_used,
+    save_interview_session,
+    seed_default_users,
+    validate_candidate_login,
+)
 from integrity_utils import interview_integrity_report, source_reading_report
 from proctoring_utils import EyeMovementMonitor, proctoring_risk_level
+from ui_theme import apply_theme, card, hero
 
 st.set_page_config(page_title="Live Proctored Interview", page_icon="🎥", layout="wide")
+apply_theme()
 
-RECRUITER_CREDENTIALS = {
-    "recruiter": "recruiter123",
-    "admin": "admin123",
-}
-CANDIDATE_CREDENTIALS = {
-    "candidate_demo": "demo123",
-    "trusthire_test": "pass2026",
-}
 DEFAULT_QUESTIONS = [
     "Tell us about yourself and your recent projects.",
     "Describe a difficult technical problem and how you solved it.",
@@ -55,9 +56,10 @@ def init_state() -> None:
     defaults = {
         "recruiter_logged_in": False,
         "recruiter_user": "",
-        "current_interview_code": "TRUSTHIRE2026",
+        "current_interview_code": "",
         "candidate_logged_in": False,
         "candidate_name": "",
+        "candidate_token": "",
         "interview_active": False,
         "interview_started_at": None,
         "violation_count": 0,
@@ -117,21 +119,27 @@ def login_panel() -> None:
         login = st.form_submit_button("Login and Start")
 
     if login:
-        valid_user = username in CANDIDATE_CREDENTIALS
-        valid_pass = valid_user and CANDIDATE_CREDENTIALS[username] == password
-        valid_code = interview_code.strip() == st.session_state.current_interview_code
+        token = interview_code.strip()
+        valid, message = validate_candidate_login(username.strip().lower(), password, token)
 
-        if valid_user and valid_pass and valid_code:
+        if valid:
+            mark_token_used(token, username.strip().lower())
             st.session_state.candidate_logged_in = True
-            st.session_state.candidate_name = username
+            st.session_state.candidate_name = username.strip().lower()
+            st.session_state.candidate_token = token
             st.session_state.interview_active = True
             st.session_state.interview_started_at = time.time()
             st.session_state.terminated = False
             st.session_state.saved_session_id = None
+            st.session_state.violation_count = 0
+            st.session_state.violation_log = []
+            st.session_state.answers = []
+            st.session_state.reading_alerts = 0
+            st.session_state.last_state_violation = False
             st.success("Login successful. Interview session started.")
             st.rerun()
         else:
-            st.error("Invalid login credentials or interview code.")
+            st.error(message)
 
 
 def recruiter_login_panel() -> None:
@@ -142,11 +150,11 @@ def recruiter_login_panel() -> None:
         login = st.form_submit_button("Unlock Interview Room")
 
     if login:
-        valid_user = username in RECRUITER_CREDENTIALS
-        valid_pass = valid_user and RECRUITER_CREDENTIALS[username] == password
-        if valid_pass:
+        user = username.strip().lower()
+        valid = authenticate_user(user, password, allowed_roles={"admin", "recruiter"})
+        if valid:
             st.session_state.recruiter_logged_in = True
-            st.session_state.recruiter_user = username
+            st.session_state.recruiter_user = user
             st.success("Recruiter login successful.")
             st.rerun()
         else:
@@ -157,10 +165,29 @@ def recruiter_controls() -> None:
     st.subheader("Recruiter Controls")
     st.write(f"Signed in as: {st.session_state.recruiter_user}")
 
-    if st.button("Generate New Interview Code"):
-        st.session_state.current_interview_code = "TH-" + secrets.token_hex(3).upper()
+    candidates = [u["username"] for u in list_users("candidate")]
+    if candidates:
+        with st.form("schedule_token_form", clear_on_submit=False):
+            candidate = st.selectbox("Candidate", candidates)
+            valid_minutes = st.slider("Token Validity (minutes)", 5, 180, 30)
+            create_token = st.form_submit_button("Issue One-Time Interview Token")
 
-    st.code(st.session_state.current_interview_code)
+        if create_token:
+            ok, message, token = create_interview_token(
+                candidate_username=candidate,
+                recruiter_username=st.session_state.recruiter_user,
+                valid_minutes=valid_minutes,
+            )
+            if ok:
+                st.session_state.current_interview_code = token
+                st.success(f"Token issued for {candidate}: {token}")
+            else:
+                st.error(message)
+    else:
+        st.warning("No candidate users available. Create candidate users in Admin Interview Records page.")
+
+    if st.session_state.current_interview_code:
+        card(f"Current token: <b>{st.session_state.current_interview_code}</b>")
 
     if st.button("Recruiter Logout"):
         st.session_state.recruiter_logged_in = False
@@ -171,10 +198,9 @@ def recruiter_controls() -> None:
 
 
 def interview_panel() -> None:
-    st.title("Live Proctored Interview Room")
-    st.caption(
-        "Meeting-style interview with policy monitoring. This can detect suspicious behavior, "
-        "but it cannot hard-block all OS-level background apps from a web browser alone."
+    hero(
+        "Live Proctored Interview Room",
+        "Meeting-style interview with camera and behavior monitoring. Strong detection, not absolute OS-level lockout.",
     )
 
     left, right = st.columns([2, 1])
@@ -182,6 +208,7 @@ def interview_panel() -> None:
     with right:
         st.write(f"Candidate: {st.session_state.candidate_name}")
         st.write(f"Recruiter: {st.session_state.recruiter_user}")
+        st.write(f"Interview Token: {st.session_state.candidate_token}")
         st.session_state.enforce_fullscreen = st.toggle(
             "Require Fullscreen",
             value=st.session_state.enforce_fullscreen,
@@ -327,6 +354,8 @@ def interview_panel() -> None:
 
         record = {
             "candidate_username": st.session_state.candidate_name,
+            "recruiter_username": st.session_state.recruiter_user,
+            "interview_token": st.session_state.candidate_token,
             "started_at": started_at,
             "ended_at": ended_at,
             "status": "flagged" if st.session_state.terminated else "completed",
@@ -348,6 +377,7 @@ def interview_panel() -> None:
             {
                 "session_id": st.session_state.saved_session_id,
                 "candidate": st.session_state.candidate_name,
+                "recruiter": st.session_state.recruiter_user,
                 "answers_count": len(st.session_state.answers),
                 "policy_violations": st.session_state.violation_count,
                 "reading_alerts": st.session_state.reading_alerts,
@@ -363,12 +393,15 @@ def interview_panel() -> None:
 
 
 init_state()
-seed_default_admin()
+seed_default_users()
 
-st.title("TrustHire Live Interview Access")
-st.caption("Recruiter/Admin unlocks room, candidate logs in, then proctored interview starts.")
+hero(
+    "TrustHire Live Interview Access",
+    "Recruiter/Admin unlocks room, issues one-time token, then candidate joins the live monitored interview.",
+)
 
 if not st.session_state.recruiter_logged_in:
+    card("Recruiter-first flow: login, issue token, share token with candidate, then start interview.")
     recruiter_login_panel()
 else:
     recruiter_controls()
