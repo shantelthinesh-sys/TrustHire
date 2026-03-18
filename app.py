@@ -4,6 +4,8 @@ import spacy
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+st.set_page_config(page_title="TrustHire Interview Suite", page_icon="🛡️", layout="wide")
+
 nlp = spacy.load("en_core_web_sm")
 
 skills_db = [
@@ -37,7 +39,9 @@ def missing_skills(resume_skills, job_skills):
     return list(set(job_skills) - set(resume_skills))
 
 # UI
-st.title("🚀 AI Resume Analyzer")
+st.title("TrustHire Interview Suite")
+st.caption("Use the left sidebar to open Interview Integrity Check and Source Reading Detector pages.")
+st.subheader("Resume Analyzer")
 
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 job_desc = st.text_area("Paste Job Description")
