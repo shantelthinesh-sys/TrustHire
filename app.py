@@ -40,7 +40,7 @@ def missing_skills(resume_skills, job_skills):
 
 # UI
 st.title("TrustHire Interview Suite")
-st.caption("Use the left sidebar to open Interview Integrity Check, Source Reading Detector, and Live Proctored Interview pages.")
+st.caption("Use the left sidebar to open Interview Integrity Check, Source Reading Detector, Live Proctored Interview, and Admin Interview Records pages.")
 st.subheader("Resume Analyzer")
 
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
