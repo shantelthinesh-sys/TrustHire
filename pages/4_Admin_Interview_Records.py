@@ -12,6 +12,7 @@ from db_utils import (
     get_interview_session,
     list_interview_sessions,
     list_interview_tokens,
+    list_schedules,
     list_users,
     seed_default_users,
 )
@@ -91,6 +92,15 @@ def tokens_panel() -> None:
     st.dataframe(tokens, use_container_width=True)
 
 
+def schedules_panel() -> None:
+    st.subheader("Interview Schedules")
+    schedules = list_schedules(limit=400)
+    if not schedules:
+        st.info("No schedules created yet.")
+        return
+    st.dataframe(schedules, use_container_width=True)
+
+
 def records_panel() -> None:
     st.subheader("Interview Session Records")
     limit = st.slider("Records to load", min_value=10, max_value=500, value=100, step=10)
@@ -166,12 +176,13 @@ def records_panel() -> None:
 
 def dashboard_panel() -> None:
     stats = dashboard_stats()
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Candidates", stats["active_candidates"])
     c2.metric("Recruiters", stats["active_recruiters"])
     c3.metric("Sessions", stats["sessions"])
     c4.metric("Flagged", stats["flagged_sessions"])
     c5.metric("Active Tokens", stats["active_tokens"])
+    c6.metric("Upcoming", stats["upcoming_schedules"])
     card("Use the tabs below to manage users, inspect tokens, and review interview evidence records.")
 
 
@@ -186,7 +197,7 @@ def admin_shell() -> None:
             st.session_state.admin_user = ""
             st.rerun()
 
-    t1, t2, t3, t4 = st.tabs(["Overview", "Users", "Tokens", "Records"])
+    t1, t2, t3, t4, t5 = st.tabs(["Overview", "Users", "Tokens", "Schedules", "Records"])
     with t1:
         dashboard_panel()
     with t2:
@@ -194,6 +205,8 @@ def admin_shell() -> None:
     with t3:
         tokens_panel()
     with t4:
+        schedules_panel()
+    with t5:
         records_panel()
 
 

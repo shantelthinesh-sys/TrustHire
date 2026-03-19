@@ -47,6 +47,7 @@ hero(
     "AI-first interview integrity platform with proctoring, evidence logs, and ATS resume analysis.",
 )
 card("Use the left sidebar to open Interview Integrity Check, Source Reading Detector, Live Proctored Interview, and Admin Interview Records.")
+card("New: Recruiter Ops Studio page for interview scheduling, one-time token desk, and invite generation.")
 st.subheader("Resume Analyzer")
 
 resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])

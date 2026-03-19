@@ -11,6 +11,7 @@ This project includes AI-powered interview quality checks and resume analysis us
 - One-time interview token issuance by recruiter
 - Persistent forensic records: answers, violations, timestamps, risk outputs
 - Admin Control Center for user management, token visibility, records explorer, and JSON export
+- Recruiter Ops Studio for interview scheduling, token desk, and invite template generation
 - Custom visual theme with modern hero sections and dashboard cards
 
 ## Tech Stack
@@ -31,6 +32,7 @@ This project includes AI-powered interview quality checks and resume analysis us
 - Source Reading Detector
 - Live Proctored Interview
 - Admin Interview Records
+- Recruiter Ops Studio
 
 ## Live Proctored Interview Flow
 1. Recruiter/Admin logs in and unlocks the interview room
@@ -40,6 +42,13 @@ This project includes AI-powered interview quality checks and resume analysis us
 5. Browser policy checks track tab switching, focus loss, and fullscreen exits
 6. Candidate answers are analyzed for possible source reading
 7. Session summary is stored automatically in SQLite for admin review
+
+## Recruiter Ops Studio
+1. Recruiter/Admin logs in to operations workspace
+2. Schedule interviews with date/time, duration, and notes
+3. Auto-issue one-time tokens for scheduled candidates
+4. Generate ready-to-send invite text with token and join instructions
+5. Manage queue status (scheduled, completed, cancelled)
 
 ## Default Credentials (Demo)
 - Recruiter: recruiter / recruiter123
@@ -53,6 +62,7 @@ This project includes AI-powered interview quality checks and resume analysis us
 	- policy violations and violation log
 	- candidate answers and reading scores
 	- integrity/risk summary
+	- interview schedules and operational notes
 
 ## Admin Records Usage
 1. Open Admin Interview Records page

@@ -88,6 +88,22 @@ def init_db() -> None:
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS interview_schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidate_username TEXT NOT NULL,
+            recruiter_username TEXT NOT NULL,
+            scheduled_for TEXT NOT NULL,
+            duration_minutes INTEGER NOT NULL DEFAULT 30,
+            notes TEXT,
+            token TEXT,
+            status TEXT NOT NULL DEFAULT 'scheduled',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS interview_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             candidate_username TEXT NOT NULL,
@@ -357,10 +373,121 @@ def mark_token_used(token: str, candidate_username: str) -> None:
     conn.commit()
     conn.close()
 
-    if not row:
+
+def create_schedule(
+    candidate_username: str,
+    recruiter_username: str,
+    scheduled_for_iso: str,
+    duration_minutes: int = 30,
+    notes: str = "",
+    token: str | None = None,
+) -> tuple[bool, str, int]:
+    init_db()
+    conn = _connect()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT username FROM users WHERE username = ? AND role = 'candidate' AND is_active = 1",
+        (candidate_username,),
+    )
+    if not cur.fetchone():
+        conn.close()
+        return False, "Candidate user not found or inactive.", 0
+
+    cur.execute(
+        """
+        INSERT INTO interview_schedules (
+            candidate_username,
+            recruiter_username,
+            scheduled_for,
+            duration_minutes,
+            notes,
+            token,
+            status,
+            created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)
+        """,
+        (
+            candidate_username,
+            recruiter_username,
+            scheduled_for_iso,
+            int(max(10, duration_minutes)),
+            notes or "",
+            token,
+            _utc_now().isoformat(),
+        ),
+    )
+
+    schedule_id = int(cur.lastrowid)
+    conn.commit()
+    conn.close()
+    return True, "Interview scheduled.", schedule_id
+
+
+def list_schedules(limit: int = 200, status: str | None = None) -> list[dict]:
+    init_db()
+    conn = _connect()
+    cur = conn.cursor()
+
+    if status:
+        cur.execute(
+            """
+            SELECT id, candidate_username, recruiter_username, scheduled_for, duration_minutes,
+                   notes, token, status, created_at
+            FROM interview_schedules
+            WHERE status = ?
+            ORDER BY scheduled_for ASC
+            LIMIT ?
+            """,
+            (status, limit),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT id, candidate_username, recruiter_username, scheduled_for, duration_minutes,
+                   notes, token, status, created_at
+            FROM interview_schedules
+            ORDER BY scheduled_for ASC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def set_schedule_status(schedule_id: int, status: str) -> bool:
+    init_db()
+    allowed = {"scheduled", "completed", "cancelled"}
+    if status not in allowed:
         return False
 
-    return row[0] == hash_password(password)
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE interview_schedules SET status = ? WHERE id = ?",
+        (status, schedule_id),
+    )
+    updated = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def attach_token_to_schedule(schedule_id: int, token: str) -> bool:
+    init_db()
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE interview_schedules SET token = ? WHERE id = ?",
+        (token, schedule_id),
+    )
+    updated = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
 
 
 def save_interview_session(record: dict) -> int:
@@ -478,6 +605,9 @@ def dashboard_stats() -> dict:
     cur.execute("SELECT COUNT(*) AS n FROM interview_tokens WHERE status = 'issued'")
     active_tokens = int(cur.fetchone()["n"])
 
+    cur.execute("SELECT COUNT(*) AS n FROM interview_schedules WHERE status = 'scheduled'")
+    upcoming_schedules = int(cur.fetchone()["n"])
+
     conn.close()
 
     return {
@@ -486,4 +616,5 @@ def dashboard_stats() -> dict:
         "sessions": sessions,
         "flagged_sessions": flagged,
         "active_tokens": active_tokens,
+        "upcoming_schedules": upcoming_schedules,
     }
